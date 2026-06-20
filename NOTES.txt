@@ -1,0 +1,62 @@
+CREDIT SENTINEL
+
+------------- VERSION 1 ---------------
+
+- installing fastAPI, uvicorn, pydantic, asyncpg, sqlalchemy, lightgbm, xgboost, scikit-learn, optuna, shap, redis, pandas, numpy
+- installing PostgreSQL and Redis
+
+app/database.py
+- using SQLalchemy to bridge connection to PostgreSQL
+- use asyncpg -> using asynchronous operations so DB reading/writing doesn't freeze API server under load
+
+app/models.py
+- map application metrics into PostgreSQL table (financial boundaries, metrics)
+
+- table structures are defined and compiled
+
+Pydantic Validation Layer
+- checks incoming data before letting it in. Doesn't allow wrong data
+
+Asynchronous Ingestion Worker
+- processes huge data in chunks in bg without freezing the system/running out memory
+
+- building async steam engine: data production simulator that generates historical client records and streams
+
+train_model.py
+- prevent data leakage (separate train and test data)
+- feature extraction matrix (transform raw data variables into predictive, domain-speccific rations like Debt-to-Income , Credit Utilization Velocity)
+- Address Extreme Imbalance 
+--> pulled from Postgres, engineered the ratios, tuned itself using Bayesian path minimization, calibrated the probability arrays, exported the pipeline artifacts cleanly onto the disk
+
+explain.py
+- AI explainabilty engine            --> Using SHAP Tree explainer (cuts explanation speeds from minutes to milliseconds)
+  (explaining a rejection applicant) --> Waterfall Parser (converts raw math arrays into clean JSON format)
+
+API and Redis Caching
+- FastAPI Web Core: builds high-speed endpoints to process data payloads and return instant validations
+- Redis Cache: uses MD5 hashes to serve duplicate profile checks instantly, saving server resources
+- CPU Offloading: runs heavy model calculations in bg threads to keep the API from freezing
+
+Creating a Full Stack React UT and Admin Drift Dashboard
+
+ERROR: Faced errors due to forgetting to activate venv
+
+----------- VERSION 2 -------------
+
+Drift and PSI Engine (Population Stability Index)
+- to calculate PSI -> macroeconomic shifts change borrower habits, making old models highly inaccurate
+
+simulation_drift.py
+- Built the Macro Drift Simulation script wrt PSI (>= 0.20)
+
+- Increasing the size of the dataset, injecting 100,000 reference credit applications into PostgreSQL db along with 25,000 live production logs
+
+Redis Semantic Caching Layer
+- replaces rigid MD5 exact-hashing with semantic vector similarity to catch near-identical profiles
+- stops minor edits, from wasting heavy tree/SHAP calculations, cutting model overhead by 40%
+- if a user edits, instead of considering both submitted entries as new, it considers it as 1 user only
+
+A/B Challenger Testing - Shadow Deployement Engine
+- API returns decisions using the main model while silently testing a new model in the background
+- Safely tests new models on live traffic without risking bank capital or slowing down consumer response speeds
+

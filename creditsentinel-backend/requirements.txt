@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pydantic
+asyncpg
+sqlalchemy
+xgboost
+lightgbm
+scikit-learn
+optuna
+shap
+redis
+pandas
+numpy
