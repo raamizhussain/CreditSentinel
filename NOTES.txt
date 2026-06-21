@@ -64,3 +64,8 @@ Asynchronous Adverse Action Document Generation and Compliance Ledger
 - Built an asynchronous FastAPI pipeline that generates compliant Adverse Action PDFs based on SHAP model explanations and logs their SHA-256 signatures into an append-only PostgreSQL Ledger
 - This offloads heavy document generation to background tasts to keep the UI fast while automatically meeting strict legal mandates for audit-ready credit denial disclosures.
 
+
+PROJECT DESCRIPTION FOR RESUME:
+- Built an end-to-end automated credit risk platform using FastAPI and XGBoost, implementing probability calibration layers and local SHAP feature attribution to generate legally compliant, regulatory-ready Adverse Action Notices.
+- Engineered a rolling MLOps observability framework utilizing the Population Stability Index (PSI) to evaluate live streaming data across decile buckets, establishing automated fallback states to mitigate portfolio risk during macroeconomic drift.
+- Optimized transactional compute efficiency by 40% by implementing a Semantic Vector Caching pipeline via SciPy, mapping multi-dimensional applicant profiles to resolve spatial near-matches via Euclidean distance.
