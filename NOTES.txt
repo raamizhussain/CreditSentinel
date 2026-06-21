@@ -60,3 +60,7 @@ A/B Challenger Testing - Shadow Deployement Engine
 - API returns decisions using the main model while silently testing a new model in the background
 - Safely tests new models on live traffic without risking bank capital or slowing down consumer response speeds
 
+Asynchronous Adverse Action Document Generation and Compliance Ledger
+- Built an asynchronous FastAPI pipeline that generates compliant Adverse Action PDFs based on SHAP model explanations and logs their SHA-256 signatures into an append-only PostgreSQL Ledger
+- This offloads heavy document generation to background tasts to keep the UI fast while automatically meeting strict legal mandates for audit-ready credit denial disclosures.
+

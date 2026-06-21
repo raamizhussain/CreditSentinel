@@ -2,6 +2,8 @@ import asyncio
 import hashlib
 import json
 import time
+import os
+import datetime
 import pandas as pd
 import joblib
 import numpy as np
@@ -9,6 +11,9 @@ from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 import redis
 from scipy.spatial.distance import euclidean
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 
 from app.schemas import CreditApplicationCreate
 from app.explain import get_local_explanation
@@ -30,6 +35,9 @@ SYSTEM_STATUS = "HEALTHY"
 REQUEST_COUNTER = 0
 SEMANTIC_CACHE_REGISTRY = []
 DISTANCE_THRESHOLD = 0.05 
+PDF_OUTPUT_DIR = "compliance_vault"
+
+os.makedirs(PDF_OUTPUT_DIR, exist_ok=True)
 
 try:
     redis_client = redis.Redis(host="127.0.0.1", port=6379, db=0, decode_responses=True)
@@ -54,17 +62,44 @@ def run_blocking_inference(df_input):
 def execute_shadow_evaluation(X_transformed):
     if challenger_model is None:
         return
-    start_time = time.time()
     try:
-        # Check if the challenger model is a simple scikit-learn classifier or tree model
         if hasattr(challenger_model, "predict_proba"):
             shadow_prob = challenger_model.predict_proba(X_transformed)[0][1]
         else:
             shadow_prob = 0.0
-        latency = (time.time() - start_time) * 1000
-        print(f"Shadow Run Complete | Challenger Probability: {shadow_prob:.4f} | Latency: {latency:.2f}ms")
+        print(f"Shadow Run Complete | Challenger Probability: {shadow_prob:.4f}")
     except Exception as e:
-        print(f"Shadow Execution Silent Warning: {str(e)}")
+        print(f"Shadow Execution Warning: {str(e)}")
+
+def generate_adverse_action_pdf(applicant_name, final_prob, drivers):
+    timestamp_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{PDF_OUTPUT_DIR}/AdverseAction_{applicant_name.replace(' ', '_')}_{timestamp_str}.pdf"
+    
+    doc = SimpleDocTemplate(filename, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+    
+    story.append(Paragraph("<b>CREDITSENTINEL COMPLIANCE LEDGER | ADVERSE ACTION NOTICE</b>", styles["Title"]))
+    story.append(Spacer(1, 20))
+    story.append(Paragraph(f"<b>Applicant Name:</b> {applicant_name}", styles["Normal"]))
+    story.append(Paragraph(f"<b>Evaluation Date:</b> {datetime.datetime.now().isoformat()}", styles["Normal"]))
+    story.append(Paragraph(f"<b>Empirical Default Risk Metric:</b> {final_prob:.2%}", styles["Normal"]))
+    story.append(Spacer(1, 15))
+    
+    story.append(Paragraph("Pursuant to the Fair Credit Reporting Act (FCRA), we regret to inform you that your application for credit extension has been denied based on automated algorithmic underwriting configurations. Below are the primary mathematical attribution vectors driving this decision:", styles["BodyText"]))
+    story.append(Spacer(1, 10))
+    
+    for idx, d in enumerate(drivers, 1):
+        item_text = f"<b>Factor {idx}:</b> {d['feature']} (Attribution Impact Score: {d['shap_value']:.4f})"
+        story.append(Paragraph(item_text, styles["Normal"]))
+        story.append(Spacer(1, 5))
+        
+    doc.build(story)
+    
+    with open(filename, "rb") as f:
+        file_hash = hashlib.sha256(f.read()).hexdigest()
+    
+    print(f"Compliance PDF Generated Successfully: {filename} | SHA-256 Ledger Signature: {file_hash}")
 
 @app.post("/api/predict")
 async def predict_credit_risk(payload: CreditApplicationCreate, background_tasks: BackgroundTasks):
@@ -84,13 +119,7 @@ async def predict_credit_risk(payload: CreditApplicationCreate, background_tasks
     for cached_item in SEMANTIC_CACHE_REGISTRY:
         dist = euclidean(current_vector, cached_item["vector"])
         if dist <= DISTANCE_THRESHOLD:
-            if redis_client:
-                cached_response = redis_client.get(cached_item["redis_key"])
-                if cached_response:
-                    return json.loads(cached_response)
-            else:
-                print(f"In-Memory Semantic Cache Hit! Vector spatial distance: {dist:.4f}")
-                return cached_item["payload"]
+            return cached_item["payload"]
                 
     mock_df = pd.DataFrame([{
         'credit_score': payload.credit_score,
@@ -104,8 +133,16 @@ async def predict_credit_risk(payload: CreditApplicationCreate, background_tasks
     loop = asyncio.get_running_loop()
     result, X_trans_array = await loop.run_in_executor(None, run_blocking_inference, mock_df)
     
-    # Offloading the challenger model calculation to a non-blocking background thread worker pool
     background_tasks.add_task(execute_shadow_evaluation, X_trans_array)
+    
+    # Check if risk profile requires an Adverse Action notice (Denial threshold set to >= 30% default probability)
+    if result["final_risk_probability"] >= 0.30:
+        background_tasks.add_task(
+            generate_adverse_action_pdf, 
+            payload.applicant_name, 
+            result["final_risk_probability"], 
+            result["top_decision_drivers"]
+        )
     
     async with AsyncSessionLocal() as session:
         async with session.begin():
@@ -129,9 +166,7 @@ async def predict_credit_risk(payload: CreditApplicationCreate, background_tasks
     result["system_status"] = SYSTEM_STATUS
     
     unique_id = f"cache:semantic:{hashlib.md5(str(current_vector).encode('utf-8')).hexdigest()}"
-    if redis_client:
-        redis_client.setex(unique_id, 900, json.dumps(result))
-        
+    
     SEMANTIC_CACHE_REGISTRY.append({
         "vector": current_vector,
         "redis_key": unique_id,
